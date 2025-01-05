@@ -115,7 +115,6 @@
     <button class="decrease">Remove Beer</button>
     <button class="reset">Reset</button>
   </div>
-
   <script>
     const counterElement = document.getElementById('counter');
     const increaseButton = document.querySelector('.increase');
@@ -139,17 +138,21 @@
     });
 
     decreaseButton.addEventListener('click', () => {
-      if (beerCount > 0) {
-        beerCount--;
-        updateCounter();
-        saveCount();
-      }
+        const confirmation = prompt("Type 'Da' to confirm beer removal:");
+        if (confirmation.toLocaleLowerCase() === 'da' && beerCount > 0) {
+          beerCount--;
+          updateCounter();
+          saveCount();
+        }
     });
 
     resetButton.addEventListener('click', () => {
-      beerCount = 0;
-      updateCounter();
-      saveCount();
+      const configuration = prompt("Type 'Da' to confirm counter reset:");
+        if (configuration.toLocaleLowerCase() === 'da') {
+            beerCount = 0;
+            updateCounter();
+            saveCount();
+        }
     });
 
     updateCounter();
