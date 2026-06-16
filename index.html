@@ -15,7 +15,8 @@
     }
 
     h1 {
-      margin-top: 50px;
+      margin-top: 40px;
+      margin-bottom: 10px;
     }
 
     #counter {
@@ -47,19 +48,86 @@
       cursor: pointer;
     }
 
-    .increase {
-      background-color: #4caf50;
-      color: white;
+    .increase { background-color: #4caf50; color: white; }
+    .decrease { background-color: #f44336; color: white; }
+    .reset    { background-color: #008cba; color: white; }
+    .paid     { background-color: #f0a500; color: white; }
+
+    /* Price config row */
+    .price-config {
+      max-width: 420px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      font-size: 15px;
+      color: #555;
     }
 
-    .decrease {
-      background-color: #f44336;
-      color: white;
+    .price-config input {
+      font-size: 15px;
+      padding: 6px 8px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      text-align: center;
     }
 
-    .reset {
-      background-color: #008cba;
-      color: white;
+    #price-input { width: 70px; }
+    #currency-input { width: 44px; }
+
+    /* Bill summary card */
+    .bill {
+      max-width: 420px;
+      margin: 20px auto;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      padding: 18px 20px;
+    }
+
+    .bill-label {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #999;
+    }
+
+    .bill-total {
+      font-size: 40px;
+      font-weight: bold;
+      color: #1a1a1a;
+      margin: 4px 0 2px;
+    }
+
+    .bill-subtotal {
+      font-size: 14px;
+      color: #888;
+      margin-bottom: 14px;
+    }
+
+    .bill-split {
+      display: flex;
+      border-top: 1px solid #eee;
+      padding-top: 12px;
+    }
+
+    .bill-split > div {
+      flex: 1;
+    }
+
+    .bill-split .amt {
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    .bill-split .paid-amt { color: #4caf50; }
+    .bill-split .out-amt  { color: #f44336; }
+
+    .bill-split .sub {
+      font-size: 12px;
+      color: #999;
+      margin-top: 2px;
     }
 
     /* History log */
@@ -77,10 +145,7 @@
       border-bottom: 2px solid #ddd;
     }
 
-    .history-header h2 {
-      font-size: 18px;
-      margin: 0;
-    }
+    .history-header h2 { font-size: 18px; margin: 0; }
 
     .clear-history {
       font-size: 13px;
@@ -107,13 +172,11 @@
       font-size: 15px;
     }
 
-    .log-action {
-      font-weight: bold;
-    }
-
-    .log-action.added { color: #4caf50; }
+    .log-action { font-weight: bold; }
+    .log-action.added   { color: #4caf50; }
     .log-action.removed { color: #f44336; }
-    .log-action.reset { color: #008cba; }
+    .log-action.reset   { color: #008cba; }
+    .log-action.paid    { color: #f0a500; }
 
     .log-time {
       color: #999;
@@ -175,9 +238,33 @@
 </g>
 </svg>
   </span>
+
+  <div class="price-config">
+    <span>Price per beer:</span>
+    <input type="number" id="price-input" min="0" step="0.10" value="4.00">
+    <input type="text" id="currency-input" value="€" maxlength="3">
+  </div>
+
+  <div class="bill">
+    <div class="bill-label">Should be on the bill</div>
+    <div class="bill-total" id="bill-total">€0.00</div>
+    <div class="bill-subtotal" id="bill-subtotal">0 beers × €4.00</div>
+    <div class="bill-split">
+      <div>
+        <div class="amt paid-amt" id="paid-amt">€0.00</div>
+        <div class="sub" id="paid-sub">Paid · 0 beers</div>
+      </div>
+      <div>
+        <div class="amt out-amt" id="out-amt">€0.00</div>
+        <div class="sub" id="out-sub">Outstanding · 0 beers</div>
+      </div>
+    </div>
+  </div>
+
   <div class="button-container">
     <button class="increase">Add Beer</button>
     <button class="decrease">Remove Beer</button>
+    <button class="paid">Mark Paid</button>
     <button class="reset">Reset</button>
   </div>
 
@@ -193,19 +280,37 @@
     const counterElement = document.getElementById('counter');
     const increaseButton = document.querySelector('.increase');
     const decreaseButton = document.querySelector('.decrease');
+    const paidButton = document.querySelector('.paid');
     const resetButton = document.querySelector('.reset');
     const clearHistoryButton = document.querySelector('.clear-history');
     const historyList = document.getElementById('history-list');
 
+    const priceInput = document.getElementById('price-input');
+    const currencyInput = document.getElementById('currency-input');
+    const billTotal = document.getElementById('bill-total');
+    const billSubtotal = document.getElementById('bill-subtotal');
+    const paidAmtEl = document.getElementById('paid-amt');
+    const paidSubEl = document.getElementById('paid-sub');
+    const outAmtEl = document.getElementById('out-amt');
+    const outSubEl = document.getElementById('out-sub');
+
     let beerCount = parseInt(localStorage.getItem('beerCount')) || 0;
+    let paidCount = parseInt(localStorage.getItem('paidCount')) || 0;
     let history = JSON.parse(localStorage.getItem('beerHistory')) || [];
+    let price = parseFloat(localStorage.getItem('beerPrice'));
+    if (isNaN(price)) price = 4.00;
+    let currency = localStorage.getItem('beerCurrency') || '€';
 
-    const updateCounter = () => {
-      counterElement.textContent = beerCount;
-    };
+    priceInput.value = price.toFixed(2);
+    currencyInput.value = currency;
 
-    const saveCount = () => {
+    const money = (n) => currency + n.toFixed(2);
+
+    const save = () => {
       localStorage.setItem('beerCount', beerCount);
+      localStorage.setItem('paidCount', paidCount);
+      localStorage.setItem('beerPrice', price);
+      localStorage.setItem('beerCurrency', currency);
     };
 
     const saveHistory = () => {
@@ -214,20 +319,35 @@
 
     const formatTime = (timestamp) => {
       return new Date(timestamp).toLocaleString([], {
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit'
+        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
       });
     };
 
-    // type: 'added' | 'removed' | 'reset'
-    const labels = { added: 'Added a beer', removed: 'Removed a beer', reset: 'Reset counter' };
+    const labelFor = (entry) => {
+      switch (entry.type) {
+        case 'added':   return 'Added a beer';
+        case 'removed': return 'Removed a beer';
+        case 'reset':   return 'Reset tab';
+        case 'paid':    return 'Paid for ' + entry.paidNow + ' beer' + (entry.paidNow === 1 ? '' : 's');
+        default:        return entry.type;
+      }
+    };
 
-    const logAction = (type) => {
-      history.unshift({ type, time: Date.now(), count: beerCount });
+    const logAction = (type, extra = {}) => {
+      history.unshift(Object.assign({ type, time: Date.now(), count: beerCount }, extra));
       saveHistory();
       renderHistory();
+    };
+
+    const refresh = () => {
+      counterElement.textContent = beerCount;
+      const outstanding = beerCount - paidCount;
+      billTotal.textContent = money(beerCount * price);
+      billSubtotal.textContent = beerCount + ' beer' + (beerCount === 1 ? '' : 's') + ' × ' + money(price);
+      paidAmtEl.textContent = money(paidCount * price);
+      paidSubEl.textContent = 'Paid · ' + paidCount + ' beer' + (paidCount === 1 ? '' : 's');
+      outAmtEl.textContent = money(outstanding * price);
+      outSubEl.textContent = 'Outstanding · ' + outstanding + ' beer' + (outstanding === 1 ? '' : 's');
     };
 
     const renderHistory = () => {
@@ -244,7 +364,7 @@
 
         const action = document.createElement('span');
         action.className = 'log-action ' + entry.type;
-        action.textContent = labels[entry.type] || entry.type;
+        action.textContent = labelFor(entry);
 
         const meta = document.createElement('span');
         meta.className = 'log-time';
@@ -259,27 +379,43 @@
 
     increaseButton.addEventListener('click', () => {
       beerCount++;
-      updateCounter();
-      saveCount();
+      save();
+      refresh();
       logAction('added');
     });
 
     decreaseButton.addEventListener('click', () => {
-      const confirmation = prompt("Type 'Da' to confirm beer removal:");
-      if (confirmation && confirmation.toLocaleLowerCase() === 'da' && beerCount > 0) {
+      if (beerCount <= 0) return;
+      if (confirm('Remove one beer from the count?')) {
         beerCount--;
-        updateCounter();
-        saveCount();
+        if (paidCount > beerCount) paidCount = beerCount;
+        save();
+        refresh();
         logAction('removed');
       }
     });
 
+    paidButton.addEventListener('click', () => {
+      const justPaid = beerCount - paidCount;
+      if (justPaid <= 0) {
+        alert('Nothing outstanding — everything is already marked paid.');
+        return;
+      }
+      if (confirm('Mark ' + justPaid + ' beer(s) as paid (' + money(justPaid * price) + ')?')) {
+        paidCount = beerCount;
+        save();
+        refresh();
+        logAction('paid', { paidNow: justPaid });
+      }
+    });
+
     resetButton.addEventListener('click', () => {
-      const configuration = prompt("Type 'Da' to confirm counter reset:");
+      const configuration = prompt("Type 'Da' to confirm tab reset:");
       if (configuration && configuration.toLocaleLowerCase() === 'da') {
         beerCount = 0;
-        updateCounter();
-        saveCount();
+        paidCount = 0;
+        save();
+        refresh();
         logAction('reset');
       }
     });
@@ -293,7 +429,22 @@
       }
     });
 
-    updateCounter();
+    priceInput.addEventListener('change', () => {
+      const v = parseFloat(priceInput.value);
+      price = isNaN(v) || v < 0 ? 0 : v;
+      priceInput.value = price.toFixed(2);
+      save();
+      refresh();
+    });
+
+    currencyInput.addEventListener('change', () => {
+      currency = currencyInput.value.trim() || '€';
+      currencyInput.value = currency;
+      save();
+      refresh();
+    });
+
+    refresh();
     renderHistory();
   </script>
 </body>
