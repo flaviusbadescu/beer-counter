@@ -61,6 +61,71 @@
       background-color: #008cba;
       color: white;
     }
+
+    /* History log */
+    .history {
+      max-width: 420px;
+      margin: 30px auto 60px;
+      text-align: left;
+    }
+
+    .history-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 4px 8px;
+      border-bottom: 2px solid #ddd;
+    }
+
+    .history-header h2 {
+      font-size: 18px;
+      margin: 0;
+    }
+
+    .clear-history {
+      font-size: 13px;
+      padding: 5px 12px;
+      background-color: #888;
+      color: white;
+    }
+
+    #history-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    #history-list li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 8px;
+      border-bottom: 1px solid #eee;
+      font-size: 15px;
+    }
+
+    .log-action {
+      font-weight: bold;
+    }
+
+    .log-action.added { color: #4caf50; }
+    .log-action.removed { color: #f44336; }
+    .log-action.reset { color: #008cba; }
+
+    .log-time {
+      color: #999;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .empty {
+      color: #aaa;
+      font-style: italic;
+      padding: 16px 8px;
+    }
   </style>
 </head>
 <body>
@@ -115,13 +180,25 @@
     <button class="decrease">Remove Beer</button>
     <button class="reset">Reset</button>
   </div>
+
+  <div class="history">
+    <div class="history-header">
+      <h2>History</h2>
+      <button class="clear-history">Clear History</button>
+    </div>
+    <ul id="history-list"></ul>
+  </div>
+
   <script>
     const counterElement = document.getElementById('counter');
     const increaseButton = document.querySelector('.increase');
     const decreaseButton = document.querySelector('.decrease');
     const resetButton = document.querySelector('.reset');
+    const clearHistoryButton = document.querySelector('.clear-history');
+    const historyList = document.getElementById('history-list');
 
     let beerCount = parseInt(localStorage.getItem('beerCount')) || 0;
+    let history = JSON.parse(localStorage.getItem('beerHistory')) || [];
 
     const updateCounter = () => {
       counterElement.textContent = beerCount;
@@ -131,31 +208,93 @@
       localStorage.setItem('beerCount', beerCount);
     };
 
+    const saveHistory = () => {
+      localStorage.setItem('beerHistory', JSON.stringify(history));
+    };
+
+    const formatTime = (timestamp) => {
+      return new Date(timestamp).toLocaleString([], {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+      });
+    };
+
+    // type: 'added' | 'removed' | 'reset'
+    const labels = { added: 'Added a beer', removed: 'Removed a beer', reset: 'Reset counter' };
+
+    const logAction = (type) => {
+      history.unshift({ type, time: Date.now(), count: beerCount });
+      saveHistory();
+      renderHistory();
+    };
+
+    const renderHistory = () => {
+      historyList.innerHTML = '';
+      if (history.length === 0) {
+        const empty = document.createElement('li');
+        empty.className = 'empty';
+        empty.textContent = 'No actions yet.';
+        historyList.appendChild(empty);
+        return;
+      }
+      history.forEach((entry) => {
+        const li = document.createElement('li');
+
+        const action = document.createElement('span');
+        action.className = 'log-action ' + entry.type;
+        action.textContent = labels[entry.type] || entry.type;
+
+        const meta = document.createElement('span');
+        meta.className = 'log-time';
+        const countText = entry.count !== undefined ? ' · total ' + entry.count : '';
+        meta.textContent = formatTime(entry.time) + countText;
+
+        li.appendChild(action);
+        li.appendChild(meta);
+        historyList.appendChild(li);
+      });
+    };
+
     increaseButton.addEventListener('click', () => {
       beerCount++;
       updateCounter();
       saveCount();
+      logAction('added');
     });
 
     decreaseButton.addEventListener('click', () => {
-        const confirmation = prompt("Type 'Da' to confirm beer removal:");
-        if (confirmation.toLocaleLowerCase() === 'da' && beerCount > 0) {
-          beerCount--;
-          updateCounter();
-          saveCount();
-        }
+      const confirmation = prompt("Type 'Da' to confirm beer removal:");
+      if (confirmation && confirmation.toLocaleLowerCase() === 'da' && beerCount > 0) {
+        beerCount--;
+        updateCounter();
+        saveCount();
+        logAction('removed');
+      }
     });
 
     resetButton.addEventListener('click', () => {
       const configuration = prompt("Type 'Da' to confirm counter reset:");
-        if (configuration.toLocaleLowerCase() === 'da') {
-            beerCount = 0;
-            updateCounter();
-            saveCount();
-        }
+      if (configuration && configuration.toLocaleLowerCase() === 'da') {
+        beerCount = 0;
+        updateCounter();
+        saveCount();
+        logAction('reset');
+      }
+    });
+
+    clearHistoryButton.addEventListener('click', () => {
+      const confirmation = prompt("Type 'Da' to confirm clearing the history:");
+      if (confirmation && confirmation.toLocaleLowerCase() === 'da') {
+        history = [];
+        saveHistory();
+        renderHistory();
+      }
     });
 
     updateCounter();
+    renderHistory();
   </script>
 </body>
 </html>
