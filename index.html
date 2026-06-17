@@ -371,7 +371,25 @@
     const outAmtEl = document.getElementById('out-amt');
     const outSubEl = document.getElementById('out-sub');
 
-    let beerCount = parseInt(localStorage.getItem('beerCount')) || 0;
+    let price = parseFloat(localStorage.getItem('beerPrice'));
+    if (isNaN(price)) price = 4.00;
+    let currency = (localStorage.getItem('beerCurrency') || 'RON').toUpperCase();
+
+    // Each beer records the price it was added at, in order of addition.
+    let beers = [];
+    try {
+      const storedBeers = localStorage.getItem('beerPrices');
+      if (storedBeers) beers = JSON.parse(storedBeers) || [];
+    } catch (e) {
+      beers = [];
+    }
+    if (!Array.isArray(beers)) beers = [];
+    // Migrate from the old single-count storage if present.
+    if (beers.length === 0) {
+      const oldCount = parseInt(localStorage.getItem('beerCount')) || 0;
+      for (let i = 0; i < oldCount; i++) beers.push(price);
+    }
+
     let paidCount = parseInt(localStorage.getItem('paidCount')) || 0;
     let history = [];
     try {
@@ -382,11 +400,8 @@
     }
     if (!Array.isArray(history)) history = [];
     // Keep paid within bounds in case of stale/odd stored values
-    if (paidCount > beerCount) paidCount = beerCount;
+    if (paidCount > beers.length) paidCount = beers.length;
     if (paidCount < 0) paidCount = 0;
-    let price = parseFloat(localStorage.getItem('beerPrice'));
-    if (isNaN(price)) price = 4.00;
-    let currency = (localStorage.getItem('beerCurrency') || 'RON').toUpperCase();
 
     priceInput.value = price.toFixed(2);
     currencyInput.value = currency;
@@ -396,8 +411,14 @@
       return currency.length <= 1 ? currency + amount : amount + ' ' + currency;
     };
 
+    const sum = (arr) => arr.reduce((s, p) => s + p, 0);
+    const totalAmount = () => sum(beers);
+    const paidAmount = () => sum(beers.slice(0, paidCount));
+    const outstandingAmount = () => sum(beers.slice(paidCount));
+
     const save = () => {
-      localStorage.setItem('beerCount', beerCount);
+      localStorage.setItem('beerPrices', JSON.stringify(beers));
+      localStorage.setItem('beerCount', beers.length); // kept for backward compatibility
       localStorage.setItem('paidCount', paidCount);
       localStorage.setItem('beerPrice', price);
       localStorage.setItem('beerCurrency', currency);
@@ -414,9 +435,10 @@
     };
 
     const labelFor = (entry) => {
+      const tag = entry.price != null ? ' (' + money(entry.price) + ')' : '';
       switch (entry.type) {
-        case 'added':   return 'Added a beer';
-        case 'removed': return 'Removed a beer';
+        case 'added':   return 'Added a beer' + tag;
+        case 'removed': return 'Removed a beer' + tag;
         case 'reset':   return 'Reset tab';
         case 'paid':    return 'Paid for ' + entry.paidNow + ' beer' + (entry.paidNow === 1 ? '' : 's');
         default:        return entry.type;
@@ -424,7 +446,7 @@
     };
 
     const logAction = (type, extra = {}) => {
-      history.unshift(Object.assign({ type, time: Date.now(), count: beerCount }, extra));
+      history.unshift(Object.assign({ type, time: Date.now(), count: beers.length }, extra));
       saveHistory();
       renderHistory();
     };
@@ -434,8 +456,9 @@
     let toastTimer = null;
 
     const takeSnapshot = () => ({
-      beerCount,
+      beers: beers.slice(),
       paidCount,
+      price,
       history: history.slice()
     });
 
@@ -454,9 +477,11 @@
 
     const performUndo = () => {
       if (!undoSnapshot) return;
-      beerCount = undoSnapshot.beerCount;
+      beers = undoSnapshot.beers;
       paidCount = undoSnapshot.paidCount;
+      price = undoSnapshot.price;
       history = undoSnapshot.history;
+      priceInput.value = price.toFixed(2);
       save();
       saveHistory();
       refresh();
@@ -467,13 +492,14 @@
     toastUndo.addEventListener('click', performUndo);
 
     const refresh = () => {
-      counterElement.textContent = beerCount;
-      const outstanding = beerCount - paidCount;
-      billTotal.textContent = money(beerCount * price);
-      billSubtotal.textContent = beerCount + ' beer' + (beerCount === 1 ? '' : 's') + ' × ' + money(price);
-      paidAmtEl.textContent = money(paidCount * price);
+      const count = beers.length;
+      const outstanding = count - paidCount;
+      counterElement.textContent = count;
+      billTotal.textContent = money(totalAmount());
+      billSubtotal.textContent = count + ' beer' + (count === 1 ? '' : 's') + ' · next ' + money(price);
+      paidAmtEl.textContent = money(paidAmount());
       paidSubEl.textContent = 'Paid · ' + paidCount + ' beer' + (paidCount === 1 ? '' : 's');
-      outAmtEl.textContent = money(outstanding * price);
+      outAmtEl.textContent = money(outstandingAmount());
       outSubEl.textContent = 'Outstanding · ' + outstanding + ' beer' + (outstanding === 1 ? '' : 's');
     };
 
@@ -507,43 +533,44 @@
 
     increaseButton.addEventListener('click', () => {
       undoSnapshot = takeSnapshot();
-      beerCount++;
+      beers.push(price);
       save();
       refresh();
-      logAction('added');
-      showToast('Beer added');
+      logAction('added', { price });
+      showToast('Beer added (' + money(price) + ')');
     });
 
     decreaseButton.addEventListener('click', () => {
-      if (beerCount <= 0) return;
+      if (beers.length === 0) return;
       undoSnapshot = takeSnapshot();
-      beerCount--;
-      if (paidCount > beerCount) paidCount = beerCount;
+      const removedPrice = beers.pop();
+      if (paidCount > beers.length) paidCount = beers.length;
       save();
       refresh();
-      logAction('removed');
-      showToast('Beer removed');
+      logAction('removed', { price: removedPrice });
+      showToast('Beer removed (' + money(removedPrice) + ')');
     });
 
     paidButton.addEventListener('click', () => {
-      const justPaid = beerCount - paidCount;
+      const justPaid = beers.length - paidCount;
       if (justPaid <= 0) {
         showToast('Nothing outstanding', false);
         return;
       }
       undoSnapshot = takeSnapshot();
-      paidCount = beerCount;
+      const justPaidAmount = sum(beers.slice(paidCount));
+      paidCount = beers.length;
       save();
       refresh();
       logAction('paid', { paidNow: justPaid });
-      showToast('Marked ' + justPaid + ' paid (' + money(justPaid * price) + ')');
+      showToast('Marked ' + justPaid + ' paid (' + money(justPaidAmount) + ')');
     });
 
     resetButton.addEventListener('click', () => {
       const configuration = prompt("Type 'Da' to confirm tab reset:");
       if (configuration && configuration.toLocaleLowerCase() === 'da') {
         hideToast();
-        beerCount = 0;
+        beers = [];
         paidCount = 0;
         save();
         refresh();
