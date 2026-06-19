@@ -402,7 +402,7 @@
 
   <div class="button-container">
     <button class="increase">Add Beer</button>
-    <button class="decrease">Remove Beer</button>
+    <button class="decrease">Remove</button>
     <button class="paid">Mark Paid</button>
     <button class="reset">Reset</button>
   </div>
@@ -618,6 +618,8 @@
       });
     };
 
+    const vibrate = (ms) => navigator.vibrate?.(ms);
+
     increaseButton.addEventListener('click', () => {
       undoSnapshot = takeSnapshot();
       beers.push(price);
@@ -625,6 +627,7 @@
       refresh();
       logAction('added', { price });
       showToast('Beer added (' + money(price) + ')');
+      vibrate(30);
     });
 
     decreaseButton.addEventListener('click', () => {
@@ -636,6 +639,7 @@
       refresh();
       logAction('removed', { price: removedPrice });
       showToast('Beer removed (' + money(removedPrice) + ')');
+      vibrate(30);
     });
 
     paidButton.addEventListener('click', () => {
