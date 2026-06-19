@@ -255,6 +255,79 @@
       margin: 0;
       cursor: pointer;
     }
+
+    /* Reset confirm modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s ease;
+    }
+
+    .modal-overlay.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal {
+      background: #21242b;
+      border-radius: 12px;
+      padding: 24px 20px;
+      max-width: 320px;
+      width: 90vw;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+      transform: scale(0.95);
+      transition: transform 0.15s ease;
+    }
+
+    .modal-overlay.show .modal {
+      transform: scale(1);
+    }
+
+    .modal h2 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      color: #f0f0f2;
+    }
+
+    .modal p {
+      margin: 0 0 20px;
+      font-size: 14px;
+      color: #9aa0a8;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .modal-cancel {
+      background: #2c2f36;
+      color: #e6e7ea;
+    }
+
+    .modal-confirm {
+      background: #f44336;
+      color: white;
+    }
+
+    .bmc {
+      display: block;
+      text-align: center;
+      margin: 0 auto 40px;
+      color: #8b8f98;
+      font-size: 13px;
+      text-decoration: none;
+    }
+
+    .bmc:hover { color: #ffb84d; }
   </style>
 </head>
 <body>
@@ -343,6 +416,19 @@
       </button>
     </div>
     <ul id="history-list" hidden></ul>
+  </div>
+
+  <a class="bmc" href="https://ko-fi.com/flaviusbadescu" target="_blank" rel="noopener">🍺 Buy me a beer</a>
+
+  <div id="reset-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal">
+      <h2 id="modal-title">Reset tab?</h2>
+      <p>This will clear the counter, paid status, and full history. This cannot be undone.</p>
+      <div class="modal-actions">
+        <button class="modal-cancel" id="modal-cancel">Cancel</button>
+        <button class="modal-confirm" id="modal-confirm">Reset</button>
+      </div>
+    </div>
   </div>
 
   <div id="toast" class="toast">
@@ -567,18 +653,27 @@
       showToast('Marked ' + justPaid + ' paid (' + money(justPaidAmount) + ')');
     });
 
-    resetButton.addEventListener('click', () => {
-      const configuration = prompt("Reset the tab and clear history?\nType 'Da' to confirm:");
-      if (configuration && configuration.toLocaleLowerCase() === 'da') {
-        hideToast();
-        beers = [];
-        paidCount = 0;
-        history = [];
-        save();
-        saveHistory();
-        refresh();
-        renderHistory();
-      }
+    const resetModal = document.getElementById('reset-modal');
+    const modalCancel = document.getElementById('modal-cancel');
+    const modalConfirm = document.getElementById('modal-confirm');
+
+    const openResetModal = () => resetModal.classList.add('show');
+    const closeResetModal = () => resetModal.classList.remove('show');
+
+    resetButton.addEventListener('click', openResetModal);
+    modalCancel.addEventListener('click', closeResetModal);
+    resetModal.addEventListener('click', (e) => { if (e.target === resetModal) closeResetModal(); });
+
+    modalConfirm.addEventListener('click', () => {
+      closeResetModal();
+      hideToast();
+      beers = [];
+      paidCount = 0;
+      history = [];
+      save();
+      saveHistory();
+      refresh();
+      renderHistory();
     });
 
     priceInput.addEventListener('change', () => {

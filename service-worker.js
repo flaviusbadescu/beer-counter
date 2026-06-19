@@ -1,5 +1,5 @@
 // Bump this version string whenever you deploy changes so old caches get replaced.
-const CACHE_VERSION = 'beer-counter-v2';
+const CACHE_VERSION = 'beer-counter-v3';
 
 const APP_SHELL = [
   './',
